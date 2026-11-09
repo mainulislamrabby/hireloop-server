@@ -36,6 +36,12 @@ app.get("/users", async (req, res) => {
   res.send(result);
 });
 
+app.post("/jobs", async (req, res) => {
+  const job = req.body;
+  const result = await jobs.insertOne(job);
+  res.send(result);
+});
+
 app.listen(PORT, () => {
   console.log(`Hireloop is running on server ${PORT}`);
 });
