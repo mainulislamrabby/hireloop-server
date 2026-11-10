@@ -48,6 +48,48 @@ app.post("/jobs", async (req, res) => {
   res.send(result);
 });
 
+app.patch("/jobs/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updatedJob = req.body;
+
+    const result = await jobs.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          title: updatedJob.title,
+          company: updatedJob.company,
+          category: updatedJob.category,
+          jobType: updatedJob.jobType,
+          remoteAllowed: updatedJob.remoteAllowed,
+          location: updatedJob.location,
+          deadline: updatedJob.deadline,
+          minSalary: updatedJob.minSalary,
+          maxSalary: updatedJob.maxSalary,
+          frequency: updatedJob.frequency,
+          responsibilities: updatedJob.responsibilities,
+          requirements: updatedJob.requirements,
+        },
+      },
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).send({ message: "Job not found" });
+    }
+
+    res.send({
+      success: true,
+      message: "Job updated successfully",
+    });
+  } catch (error) {
+    console.error("Update job error:", error);
+
+    res.status(500).send({
+      message: "Failed to update job",
+    });
+  }
+});
+
 app.delete("/jobs/:id", async (req, res) => {
   const id = req.params.id;
   const query = { _id: new ObjectId(id) };
