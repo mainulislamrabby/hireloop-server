@@ -45,7 +45,10 @@ app.get("/jobs", async (req, res) => {
   }
 
   // Remote filter
-  if (req.query.remoteAllowed !== undefined) {
+  if (
+    req.query.remoteAllowed === "true" ||
+    req.query.remoteAllowed === "false"
+  ) {
     query.isRemote = req.query.remoteAllowed === "true";
   }
 
