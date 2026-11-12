@@ -37,8 +37,37 @@ app.get("/users", async (req, res) => {
 });
 
 app.get("/jobs", async (req, res) => {
-  const cursor = jobs.find({});
+  const query = {};
+
+  // Job type filter
+  if (req.query.jobType) {
+    query.jobType = req.query.jobType;
+  }
+
+  // Remote filter
+  if (req.query.remoteAllowed !== undefined) {
+    query.isRemote = req.query.remoteAllowed === "true";
+  }
+
+  // Category filter
+  if (req.query.category) {
+    query.category = req.query.category;
+  }
+
+  // Search filter
+  if (req.query.search) {
+    query.$or = [
+      { jobTitle: { $regex: req.query.search, $options: "i" } },
+      { companyName: { $regex: req.query.search, $options: "i" } },
+      { responsibilities: { $regex: req.query.search, $options: "i" } },
+      { qualifications: { $regex: req.query.search, $options: "i" } },
+    ];
+  }
+
+  console.log("MongoDB filter:", query);
+  const cursor = jobs.find(query);
   const result = await cursor.toArray();
+
   res.send(result);
 });
 
