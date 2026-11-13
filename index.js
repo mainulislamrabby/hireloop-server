@@ -37,41 +37,100 @@ app.get("/users", async (req, res) => {
 });
 
 app.get("/jobs", async (req, res) => {
-  const query = {};
+  try {
+    const filters = {};
 
-  // Job type filter
-  if (req.query.jobType) {
-    query.jobType = req.query.jobType;
+    // Job Type
+    if (req.query.jobType) {
+      filters.jobType = String(req.query.jobType).toLowerCase();
+    }
+
+    // Category
+    if (req.query.category) {
+      filters.category = req.query.category;
+    }
+
+    // Build combined conditions
+    const conditions = [];
+
+    if (Object.keys(filters).length > 0) {
+      conditions.push(filters);
+    }
+
+    // Remote / On-site
+    if (
+      req.query.remoteAllowed === "true" ||
+      req.query.remoteAllowed === "false"
+    ) {
+      const remoteValue = req.query.remoteAllowed === "true";
+
+      conditions.push({
+        $or: [{ remoteAllowed: remoteValue }, { isRemote: remoteValue }],
+      });
+    }
+
+    // Search
+    if (req.query.search) {
+      const searchRegex = {
+        $regex: String(req.query.search).trim(),
+        $options: "i",
+      };
+
+      conditions.push({
+        $or: [
+          { title: searchRegex },
+          { jobTitle: searchRegex },
+          { company: searchRegex },
+          { companyName: searchRegex },
+          { responsibilities: searchRegex },
+          { requirements: searchRegex },
+          { qualifications: searchRegex },
+        ],
+      });
+    }
+
+    const query = conditions.length > 0 ? { $and: conditions } : {};
+
+    console.log("MongoDB filter:", query);
+
+    const result = await jobs.find(query).toArray();
+
+    res.send(result);
+  } catch (error) {
+    console.error("Get jobs error:", error);
+    res.status(500).send({ message: "Failed to fetch jobs" });
   }
+});
 
-  // Remote filter
-  if (
-    req.query.remoteAllowed === "true" ||
-    req.query.remoteAllowed === "false"
-  ) {
-    query.isRemote = req.query.remoteAllowed === "true";
+// Get single job details
+app.get("/jobs/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({
+        message: "Invalid job ID",
+      });
+    }
+
+    const job = await jobs.findOne({
+      _id: new ObjectId(id),
+    });
+
+    if (!job) {
+      return res.status(404).send({
+        message: "Job not found",
+      });
+    }
+
+    res.send(job);
+  } catch (error) {
+    console.error("Get job details error:", error);
+
+    res.status(500).send({
+      message: "Failed to fetch job details",
+    });
   }
-
-  // Category filter
-  if (req.query.category) {
-    query.category = req.query.category;
-  }
-
-  // Search filter
-  if (req.query.search) {
-    query.$or = [
-      { jobTitle: { $regex: req.query.search, $options: "i" } },
-      { companyName: { $regex: req.query.search, $options: "i" } },
-      { responsibilities: { $regex: req.query.search, $options: "i" } },
-      { qualifications: { $regex: req.query.search, $options: "i" } },
-    ];
-  }
-
-  console.log("MongoDB filter:", query);
-  const cursor = jobs.find(query);
-  const result = await cursor.toArray();
-
-  res.send(result);
 });
 
 app.post("/jobs", async (req, res) => {
