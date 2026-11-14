@@ -25,6 +25,7 @@ const connectedClient = await connectToMongoDB();
 const database = connectedClient.db("hireloop");
 const users = database.collection("user");
 const jobs = database.collection("jobs");
+const applications = database.collection("applications");
 
 app.get("/", (req, res) => {
   res.send(`Server is running on port: ${PORT}`);
@@ -186,6 +187,79 @@ app.delete("/jobs/:id", async (req, res) => {
   const query = { _id: new ObjectId(id) };
   const result = await jobs.deleteOne(query);
   res.send(result);
+});
+
+// application api
+
+app.post("/applications", async (req, res) => {
+  try {
+    const { jobId, userId, name, email, phone, resumeUrl, coverLetter } =
+      req.body;
+
+    if (
+      !jobId ||
+      !ObjectId.isValid(jobId) ||
+      !userId ||
+      !name ||
+      !email ||
+      !phone ||
+      !resumeUrl ||
+      !coverLetter
+    ) {
+      return res.status(400).send({
+        message: "Please provide all required application details.",
+      });
+    }
+
+    // Check whether the job exists
+    const job = await jobs.findOne({
+      _id: new ObjectId(jobId),
+    });
+
+    if (!job) {
+      return res.status(404).send({
+        message: "Job not found.",
+      });
+    }
+
+    // Prevent duplicate applications
+    const existingApplication = await applications.findOne({
+      jobId,
+      userId,
+    });
+
+    if (existingApplication) {
+      return res.status(409).send({
+        message: "You have already applied for this job.",
+      });
+    }
+
+    const application = {
+      jobId,
+      userId,
+      name,
+      email,
+      phone,
+      resumeUrl,
+      coverLetter,
+      status: "pending",
+      createdAt: new Date(),
+    };
+
+    const result = await applications.insertOne(application);
+
+    res.status(201).send({
+      success: true,
+      message: "Application submitted successfully.",
+      insertedId: result.insertedId,
+    });
+  } catch (error) {
+    console.error("Submit application error:", error);
+
+    res.status(500).send({
+      message: "Failed to submit application.",
+    });
+  }
 });
 
 app.listen(PORT, () => {
