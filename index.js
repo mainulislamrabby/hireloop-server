@@ -194,11 +194,9 @@ app.delete("/jobs/:id", async (req, res) => {
 app.get("/applications", async (req, res) => {
   try {
     const query = {};
-
     if (req.query.applicantId) {
       query.userId = req.query.applicantId;
     }
-
     const result = await applications
       .aggregate([
         { $match: query },
@@ -216,7 +214,6 @@ app.get("/applications", async (req, res) => {
             },
           },
         },
-
         // Get related job information
         {
           $lookup: {
@@ -301,6 +298,15 @@ app.get("/applications", async (req, res) => {
     console.error("Get applications error:", error);
     res.status(500).send({ message: "Failed to fetch applications." });
   }
+});
+
+app.get("/applications/count", async (req, res) => {
+  const query = {};
+  if (req.query.applicantId) {
+    query.userId = req.query.applicantId;
+  }
+  const result = await applications.countDocuments(query);
+  res.send({ count: result });
 });
 
 app.post("/applications", async (req, res) => {
