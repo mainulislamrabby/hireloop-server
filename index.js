@@ -191,6 +191,118 @@ app.delete("/jobs/:id", async (req, res) => {
 
 // application api
 
+app.get("/applications", async (req, res) => {
+  try {
+    const query = {};
+
+    if (req.query.applicantId) {
+      query.userId = req.query.applicantId;
+    }
+
+    const result = await applications
+      .aggregate([
+        { $match: query },
+
+        // Convert jobId string into MongoDB ObjectId
+        {
+          $addFields: {
+            jobObjectId: {
+              $convert: {
+                input: "$jobId",
+                to: "objectId",
+                onError: null,
+                onNull: null,
+              },
+            },
+          },
+        },
+
+        // Get related job information
+        {
+          $lookup: {
+            from: "jobs",
+            let: { jobObjectId: "$jobObjectId" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: { $eq: ["$_id", "$$jobObjectId"] },
+                },
+              },
+            ],
+            as: "job",
+          },
+        },
+
+        {
+          $unwind: {
+            path: "$job",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+
+        // Return data in the format expected by the frontend
+        {
+          $project: {
+            _id: 1,
+            jobId: 1,
+
+            jobTitle: {
+              $ifNull: [
+                "$job.title",
+                { $ifNull: ["$job.jobTitle", "Unknown Job"] },
+              ],
+            },
+
+            company: {
+              $ifNull: [
+                "$job.company",
+                { $ifNull: ["$job.companyName", "Unknown Company"] },
+              ],
+            },
+
+            jobType: { $ifNull: ["$job.jobType", "N/A"] },
+            location: { $ifNull: ["$job.location", "N/A"] },
+
+            appliedAt: "$createdAt",
+
+            status: {
+              $switch: {
+                branches: [
+                  { case: { $eq: ["$status", "pending"] }, then: "Applied" },
+                  {
+                    case: { $eq: ["$status", "review"] },
+                    then: "Under Review",
+                  },
+                  {
+                    case: { $eq: ["$status", "shortlisted"] },
+                    then: "Shortlisted",
+                  },
+                  { case: { $eq: ["$status", "rejected"] }, then: "Rejected" },
+                  { case: { $eq: ["$status", "offered"] }, then: "Offered" },
+                  {
+                    case: { $eq: ["$status", "interview"] },
+                    then: "Interview",
+                  },
+                ],
+                default: "Applied",
+              },
+            },
+
+            archived: { $ifNull: ["$archived", false] },
+          },
+        },
+
+        { $sort: { appliedAt: -1 } },
+      ])
+      .toArray();
+
+    res.send(result);
+  } catch (error) {
+    console.error("Get applications error:", error);
+    res.status(500).send({ message: "Failed to fetch applications." });
+  }
+});
+
 app.post("/applications", async (req, res) => {
   try {
     const { jobId, userId, name, email, phone, resumeUrl, coverLetter } =
