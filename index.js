@@ -2,6 +2,9 @@ import express from "express";
 import cors from "cors";
 import "dotenv/config";
 import { MongoClient, ObjectId } from "mongodb";
+import Stripe from "stripe";
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -26,6 +29,7 @@ const database = connectedClient.db("hireloop");
 const users = database.collection("user");
 const jobs = database.collection("jobs");
 const applications = database.collection("applications");
+const payments = database.collection("payments");
 
 app.get("/", (req, res) => {
   res.send(`Server is running on port: ${PORT}`);
@@ -382,6 +386,39 @@ app.post("/applications", async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Hireloop is running on server ${PORT}`);
+});
+
+// payments api
+
+app.post("/payments/checkout-verify", async (req, res) => {
+  const { sessionId } = req.body;
+  const { status, payment_status, customer_email, metadata, payment_intent } =
+    await stripe.checkout.sessions.retrieve(sessionId);
+  if (status === "complete" && payment_status === "paid") {
+    const payment = {
+      sessionId,
+      status,
+      payment_status,
+      customer_email,
+      userId: metadata.userId,
+      payment_date: new Date(),
+      payment_intent,
+    };
+    const result = await payments.insertOne(payment);
+
+    const query = { _id: new ObjectId(metadata.userId) };
+
+    const updatedDoc = {
+      $set: {
+        premium: true,
+      },
+    };
+    const updateResult = await users.updateOne(query, updatedDoc);
+
+    res.send({ success: true, result, updateResult });
+    return;
+  }
+  res.send({ success: false, message: "Payment Verification Faild" });
 });
 
 export default app;
